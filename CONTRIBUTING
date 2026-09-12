@@ -1,0 +1,56 @@
+CONTRIBUTING TO zaeboot
+=======================
+
+By submitting a patch to this project, you agree to the Developer
+Certificate of Origin 1.1 (DCO) detailed below.
+
+
+1. SUBMISSION RULES
+-------------------
+
+- Every commit MUST contain a valid "Signed-off-by:" line matching your
+  git author identity (e.g. `git commit -s`). Commits without this line
+  will be dropped immediately without review.
+- Zig, the version pinned in the README, using std.os.uefi. No C, no
+  vendored UEFI headers, no third-party packages. If the standard library
+  lacks a protocol, add the extern struct locally and keep it small.
+- The boot protocol (src/protocol.zig, mirrored in the kernel's
+  include/zaeboot.h) is an ABI. Fields are appended, never reordered or
+  removed; bump the version when you append; the kernel checks `size`.
+  Break it and you have broken every kernel ever built against it.
+- Nothing after ExitBootServices may call boot services, print, or
+  allocate. If you cannot prove that by reading the code, restructure it
+  until you can.
+- No heuristics about firmware. If a firmware is broken, work around it
+  behind a check for that firmware, and say which one in the comment.
+- A patch that only works on OVMF is not tested. Say what you booted it on.
+- Read CODE_OF_CONFLICT before submitting anything. If your patch is trash,
+  expect to be told it is trash in plain, direct terms.
+
+
+2. DEVELOPER'S CERTIFICATE OF ORIGIN 1.1
+-----------------------------------------
+
+By making a contribution to this project, I certify that:
+
+(a) The contribution was created in whole or in part by me and I
+    have the right to submit it under the open source license
+    indicated in the file; or
+
+(b) The contribution is based upon previous work that, to the best
+    of my knowledge, is covered under an appropriate open source
+    license and I have the right under that license to submit that
+    work with modifications, whether created in whole or in part
+    by me, under the same open source license (unless I am
+    permitted to submit under a different license), as indicated
+    in the file; or
+
+(c) The contribution was provided directly to me by some other
+    person who certified (a), (b) or (c) and I have not modified
+    it; and
+
+(d) I understand and agree that this project and the contribution
+    are public and that a record of the contribution (including all
+    personal information I submit with it, including my sign-off) is
+    maintained indefinitely and may be redistributed consistent with
+    this project or the open source license(s) involved.
