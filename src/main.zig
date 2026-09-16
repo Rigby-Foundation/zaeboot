@@ -118,6 +118,7 @@ fn boot() !noreturn {
         .kernel_size = loaded.size,
         .initrd_addr = if (initrd) |rd| @intFromPtr(rd.ptr) else 0,
         .initrd_size = if (initrd) |rd| rd.len else 0,
+        .firmware = .uefi,
     };
 
     // -- 5. go ------------------------------------------------------------------
