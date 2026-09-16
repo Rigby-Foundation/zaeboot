@@ -1,6 +1,10 @@
 # zaeboot
 
-A UEFI bootloader written in Zig for the [sic](https://github.com/Rigby-Foundation/sic) kernel.
+A bootloader written in Zig for the [sic](https://github.com/Rigby-Foundation/sic)
+kernel, for UEFI and legacy BIOS machines. Both paths hand the kernel the same
+boot info (`src/protocol.zig`).
+
+## UEFI
 
 Boot sequence (`src/main.zig`):
 
@@ -14,6 +18,33 @@ Boot sequence (`src/main.zig`):
 
 The boot protocol lives in `src/protocol.zig` and mirrors `sic/include/zaeboot.h`.
 
+## Legacy BIOS
+
+`src/bios/`: stage 1 (`stage1.s`) is the 512-byte MBR: it loads stage 2 from
+the sectors after it with INT 13h, enables A20 and enters protected mode.
+Stage 2 (`stage2.zig`, 32-bit, ~7 KiB) does the real work in Zig, reaching
+the BIOS through a protected↔real mode trampoline (`bios.s`): E820 memory
+map, VBE framebuffer (32 bpp, largest of 1280x1024/1280x800/1024x768/800x600),
+ACPI RSDP scan, then loads the kernel ELF and the initrd from fixed LBAs,
+identity-maps 4 GiB and jumps into long mode.
+
+`tools/mkimage.zig` produces a raw disk image for QEMU: MBR, stage 2, kernel,
+initrd, with the LBAs patched into stage 2's image table. On a real disk the
+same stages live inside a GPT layout written by ZAE's `sicinstall` (stage 1 in
+the protective MBR, stage 2 at LBA 34, kernel + initrd in a raw `sicboot`
+partition), so one disk boots on both firmwares.
+
+On real firmware the BIOS path narrates itself: stage 1 prints `zaeboot 1 2 3`
+(INT 13h extensions, stage 2 loaded, A20), stage 2 prints each step with one
+dot per MiB read, re-enables A20 if the BIOS turned it off during disk calls,
+and mirrors everything to COM1 (115200 8N1). Typing `v` during the load skips
+VBE mode setting for firmware whose video BIOS misbehaves.
+
+```bash
+zig build bios        # zig-out/bios/zaeboot-bios.img
+zig build run-bios    # boot it in QEMU with SeaBIOS
+```
+
 ## Building
 
 Zig 0.16.
@@ -22,10 +53,15 @@ Zig 0.16.
 zig build            # zig-out/bin/BOOTX64.efi
 zig build esp        # stage zig-out/esp/{EFI/BOOT/BOOTX64.EFI,sic.elf}
 zig build run        # boot the staged ESP in QEMU with OVMF, 2 vCPUs
+zig build run-bios   # boot the BIOS disk image in QEMU with SeaBIOS
+zig build sysroot    # install BOOTX64.EFI, stage1.bin, stage2.bin into $SIC_SYSROOT/boot/zaeboot
+                     # (ZAE packs them into the initrd for sicinstall)
+zig build run-installed[-bios]   # boot zig-out/sata.img, the disk sicinstall wrote in QEMU
 ```
 
-`zig build run` also attaches a 64 MiB NVMe disk (`zig-out/disk.img`, created
-empty on first use) that sic formats with zaefs and mounts on `/disk`.
+`zig build run` also attaches two 64 MiB NVMe disks (`zig-out/disk.img`,
+`zig-out/fat.img`, created empty on first use): sic formats the first with zaefs
+and mounts it on `/disk`; the self test formats the second with FAT32.
 
 By default the kernel and initrd are taken from the sysroot the other sic
 projects install into (`$SIC_SYSROOT/boot/{sic.elf,initrd.tar}`, default

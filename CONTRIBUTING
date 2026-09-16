@@ -14,6 +14,9 @@ Certificate of Origin 1.1 (DCO) detailed below.
 - Zig, the version pinned in the README, using std.os.uefi. No C, no
   vendored UEFI headers, no third-party packages. If the standard library
   lacks a protocol, add the extern struct locally and keep it small.
+- The BIOS path: only stage1.s and the trampoline in bios.s are assembly;
+  everything else is 32-bit Zig in stage2.zig. Real-mode code goes in
+  .text16 (VMA 0) and nothing else may reference it without adding BASE.
 - The boot protocol (src/protocol.zig, mirrored in the kernel's
   include/zaeboot.h) is an ABI. Fields are appended, never reordered or
   removed; bump the version when you append; the kernel checks `size`.
