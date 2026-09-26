@@ -132,6 +132,34 @@ pub fn build(b: *std.Build) void {
     const bios = b.step("bios", "Build the legacy BIOS disk image (zig-out/bios/zaeboot-bios.img)");
     bios.dependOn(&install_img.step);
 
+    // `zig build hybrid`: one image for BIOS and UEFI machines (write it to a
+    // USB stick). A FAT32 EFI system partition from the staged ESP tree,
+    // freshly formatted so every file is contiguous, which stage 2 then reads
+    // in place. Needs mtools.
+    const mkesp = b.addSystemCommand(&.{ "sh", "-c",
+        \\set -e
+        \\out="$1"; esp=zig-out/esp
+        \\kb=$(du -sk "$esp" | cut -f1)
+        \\rm -f "$out"; dd if=/dev/zero of="$out" bs=1m count=$(( kb / 1024 + 40 )) 2>/dev/null
+        \\mformat -F -v SIC -i "$out" ::
+        \\mmd -i "$out" ::EFI ::EFI/BOOT
+        \\mcopy -i "$out" "$esp/EFI/BOOT/BOOTX64.EFI" ::EFI/BOOT/BOOTX64.EFI
+        \\mcopy -i "$out" "$esp/sic.elf" ::sic.elf
+        \\mcopy -i "$out" "$esp/initrd.tar" ::initrd.tar
+    , "mkesp" });
+    const esp_img = mkesp.addOutputFileArg("esp.img");
+    mkesp.step.dependOn(esp);
+    mkesp.has_side_effects = true;
+    const mkhybrid = b.addRunArtifact(mkimage);
+    mkhybrid.addArg("--hybrid");
+    mkhybrid.addFileArg(stage1_bin.getOutput());
+    mkhybrid.addFileArg(stage2_bin.getOutput());
+    mkhybrid.addFileArg(esp_img);
+    const hybrid_img = mkhybrid.addOutputFileArg("sic.img");
+    const install_hybrid = b.addInstallFile(hybrid_img, "sic.img");
+    const hybrid = b.step("hybrid", "Build zig-out/sic.img, bootable on BIOS and UEFI machines");
+    hybrid.dependOn(&install_hybrid.step);
+
     // `zig build sysroot`: the loader binaries the installer needs, into
     // $SYSROOT/boot/zaeboot/ (ZAE packs that directory into the initrd).
     const sr_efi = b.addInstallFileWithDir(exe.getEmittedBin(), .{ .custom = "sysroot-boot" }, "BOOTX64.EFI");

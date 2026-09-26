@@ -43,7 +43,13 @@ VBE mode setting for firmware whose video BIOS misbehaves.
 ```bash
 zig build bios        # zig-out/bios/zaeboot-bios.img
 zig build run-bios    # boot it in QEMU with SeaBIOS
+zig build hybrid      # zig-out/sic.img: BIOS and UEFI in one image (needs mtools)
 ```
+
+The hybrid image is the MBR and stage 2 followed by a FAT32 EFI system
+partition at 1 MiB (`BOOTX64.EFI`, `sic.elf`, `initrd.tar`). UEFI firmware
+boots the partition; stage 2 reads `sic.elf` and `initrd.tar` in place
+(`mkimage --hybrid` finds them in the FAT, which must hold them contiguous).
 
 ## Building
 
