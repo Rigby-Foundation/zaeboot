@@ -327,6 +327,13 @@ fn ramCovers(base: u64, len: u64) bool {
     return false;
 }
 
+/// Five seconds (INT 15h AH=86h) so a message about the display stays on
+/// screen long enough to read before the kernel's output scrolls it away.
+fn readablePause() void {
+    var r = BiosRegs{ .eax = 0x8600, .ecx = 0x004C, .edx = 0x4B40 };
+    bios_int(0x15, &r);
+}
+
 // ---- VBE framebuffer --------------------------------------------------------------
 // Packed on the wire: no natural alignment, hence the u16 pairs.
 const VbeInfo = extern struct {
@@ -396,6 +403,7 @@ fn setupFramebuffer() protocol.Framebuffer {
     puts(", edid");
     if (r.eax & 0xFFFF != 0x004F) {
         puts("no VBE (ax="); putHex(r.eax); puts("): continuing without a framebuffer\n");
+        readablePause();
         return none;
     }
     const list: [*]const u16 = @ptrFromInt(@as(usize, vbe_info.modes_seg) * 16 + vbe_info.modes_off);
@@ -432,6 +440,7 @@ fn setupFramebuffer() protocol.Framebuffer {
     }
     if (best_mode == 0) {
         puts("no suitable VBE mode: continuing without a framebuffer\n");
+        readablePause();
         return none;
     }
     var q = BiosRegs{ .eax = 0x4F01, .ecx = best_mode, .edi = off(@intFromPtr(&vbe_mode)), .es = seg(@intFromPtr(&vbe_mode)) };
@@ -455,7 +464,13 @@ fn setupFramebuffer() protocol.Framebuffer {
     puts("\n");
     var s = BiosRegs{ .eax = 0x4F02, .ebx = @as(u32, best_mode) | 0x4000 };
     bios_int(0x10, &s);
-    if (s.eax & 0xFFFF != 0x004F) return none;
+    if (s.eax & 0xFFFF != 0x004F) {
+        puts("video: setting the mode failed (ax=");
+        putHex(s.eax);
+        puts("): continuing without a framebuffer\n");
+        readablePause();
+        return none;
+    }
     text_mode = false;
     return fb;
 }
